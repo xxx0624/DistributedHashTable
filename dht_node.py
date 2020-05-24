@@ -13,7 +13,6 @@ def hex(x):
 
 
 def hex_id(host, port):
-    port = socket.htonl(port)
     h = hashlib.sha1()
     h.update(repr(host).encode(charset))
     h.update(repr(port).encode(charset))
@@ -23,7 +22,7 @@ def hex_id(host, port):
 class Node:
     def __init__(self, host, port):
         self.host = host
-        self.port = int(port)
+        self.port = port
         self.id = hex_id(host, port)
         self.kv = {}
     
@@ -57,7 +56,7 @@ def _load_data_to_nodes(hostfile):
         with open(hostfile, 'rb') as file:
             for line in file.readlines():
                 host, port = line.split()
-                port = int(port)
+                port = socket.htonl(port)
                 nodes.append((host, port))
     except Exception as e:
         print (repr(e))
@@ -74,6 +73,43 @@ def parse_request(r):
     k = str(r[4])
     v = str(r[5])
     return host, port, hop, op, k, v
+
+
+# return the successor(Assume there is one node at least in nodes list)
+def find_successor(nodes, key):
+    all_id = []
+    for node in nodes:
+        all_id.append(hex_id(node[0], node[1]))
+    all_id.append(hex(key))
+    all_id.sort()
+    # find the index of key
+    index_of_key = -1
+    key_id = hex(key)
+    for idx, val in enumerate(all_id):
+        if val == key_id:
+            index_of_key = idx
+            break
+    # check if the key id matches one node exactly
+    def find_node_by_id(nodes, id):
+        for node in nodes:
+            if id == hex_id(node[0], node[1]):
+                return node[0], node[1]
+        return None
+    pre_index_to_check = index_of_key - 1
+    next_index_to_check = index_of_key + 1
+    if pre_index_to_check < 0:
+        pre_index_to_check = len(all_id) - 1
+    if next_index_to_check >= len(all_id):
+        next_index_to_check = 0
+    if key_id == all_id[pre_index_to_check]:
+        return find_node_by_id(nodes, all_id[pre_index_to_check])
+    if hex(key) == all_id[next_index_to_check]:
+        return find_node_by_id(nodes, all_id[next_index_to_check])
+    # not exist the same id. try to find the next one node in the sorted list
+    next_index = 1 + index_of_key
+    if next_index >= len(all_id):
+        next_index = 0
+    return find_node_by_id(nodes, all_id[next_index])
 
 
 hostfile, linenum = _parse_args()
