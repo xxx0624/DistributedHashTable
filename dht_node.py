@@ -1,5 +1,7 @@
 import hashlib
 import argparse
+import socket
+import sys
 
 charset = "UTF-8"
 
@@ -10,17 +12,17 @@ def hex(x):
     return h.digest()
 
 
-def hex_id(h, p):
-    p = socket.htonl(p)
+def hex_id(host, port):
+    port = socket.htonl(port)
     h = hashlib.sha1()
-    h.update(repr(a).encode(charset))
-    h.update(repr(p).encode(charset))
+    h.update(repr(host).encode(charset))
+    h.update(repr(port).encode(charset))
     return h.hexdigest()
 
 
 class Node:
     def __init__(self, host, port):
-        self.host = ip
+        self.host = host
         self.port = int(port)
         self.id = hex_id(host, port)
         self.kv = {}
@@ -51,22 +53,27 @@ def _parse_args():
 
 def _load_data_to_nodes(hostfile):
     nodes = []
-    file = open(hostfile, 'r')
-    for line in file.readlines():
-        host, port = line.split()
-        port = int(port)
-        nodes.append((host, port))
+    try:
+        with open(hostfile, 'rb') as file:
+            for line in file.readlines():
+                host, port = line.split()
+                port = int(port)
+                nodes.append((host, port))
+    except Exception as e:
+        print (repr(e))
+        sys.exit()
     return nodes
 
 
 def parse_request(r):
-    a = str(r[0])
-    p = int(r[1])
-    h = int(r[2])
+    r = r.decode(charset).split(',')
+    host = str(r[0])
+    port = int(r[1])
+    hop = int(r[2])
     op = str(r[3])
     k = str(r[4])
     v = str(r[5])
-    return a, p, h, op, k, v
+    return host, port, hop, op, k, v
 
 
 hostfile, linenum = _parse_args()
@@ -74,10 +81,12 @@ nodes = _load_data_to_nodes(hostfile)
 myself = Node(nodes[linenum][0], nodes[linenum][1])
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind((self.host, port))
+sock.bind((myself.host, myself.port))
 while True:
-    message, address = sock.recvfrom(1024)
-    request = pickle.loads(message)
-    print('\nreceived {} bytes from {}'.format(len(message), address))
-    print('request received : ' + str(request))
-    cli_addr, cli_port, hops, operation, key, value = parse_request(request)
+    print ("waiting")
+    req, address = sock.recvfrom(1024)
+    print('request received:', req, ' from ', address)
+    cli_addr, cli_port, hops, operation, key, value = parse_request(req)
+    resp = 'ok'
+    sent = sock.sendto(str.encode(resp), address)
+    print ('send response', resp)
