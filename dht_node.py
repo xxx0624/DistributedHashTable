@@ -9,7 +9,7 @@ charset = "UTF-8"
 def hex(x):
     h = hashlib.sha1()
     h.update(repr(x).encode(charset))
-    return h.digest()
+    return h.hexdigest()
 
 
 def hex_id(host, port):
@@ -26,7 +26,7 @@ class Node:
         self.id = hex_id(host, port)
         self.kv = {}
     
-    def put(key, val):
+    def put(self, key, val):
         if val == None or val == "":
             try:
                 del self.kv[key]
@@ -35,11 +35,11 @@ class Node:
         else:
             self.kv[key] = val
     
-    def get(key):
+    def get(self, key):
         if key in self.kv:
             return self.kv[key]
         else:
-            return None
+            return ""
 
 
 def _parse_args():
@@ -56,16 +56,17 @@ def _load_data_to_nodes(hostfile):
         with open(hostfile, 'rb') as file:
             for line in file.readlines():
                 host, port = line.split()
-                port = socket.htonl(port)
+                port = int(port)
                 nodes.append((host, port))
     except Exception as e:
+        print ('loading file error')
         print (repr(e))
         sys.exit()
     return nodes
 
 
 def parse_request(r):
-    r = r.decode(charset).split(',')
+    r = r.split(',')
     host = str(r[0])
     port = int(r[1])
     hop = int(r[2])
@@ -94,7 +95,7 @@ def find_successor(nodes, key):
         for node in nodes:
             if id == hex_id(node[0], node[1]):
                 return node[0], node[1]
-        return None
+        return None, None
     pre_index_to_check = index_of_key - 1
     next_index_to_check = index_of_key + 1
     if pre_index_to_check < 0:
@@ -120,9 +121,28 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((myself.host, myself.port))
 while True:
     print ("waiting")
-    req, address = sock.recvfrom(1024)
-    print('request received:', req, ' from ', address)
-    cli_addr, cli_port, hops, operation, key, value = parse_request(req)
-    resp = 'ok'
-    sent = sock.sendto(str.encode(resp), address)
-    print ('send response', resp)
+    req, cli_address = sock.recvfrom(1024)
+    req = req.decode(charset)
+    print('request received:', req, ' from ', cli_address)
+    cli_host, cli_port, hops, op, key, value = parse_request(req)
+    if hops == 1:
+        cli_host = cli_address[0]
+        cli_port = cli_address[1]
+    target_host, target_port = find_successor(nodes, key)
+    if target_host == myself.host and target_port == myself.port:
+        resp = ""
+        if op.lower() == "get":
+            resp = myself.get(key)
+        else:
+            myself.put(key, value)
+            resp = "put successful"
+        sock.sendto(str.encode(resp), (cli_host, cli_port))
+        print ('send response:', resp, ' to ', (cli_host, cli_port))
+    else:
+        # forward to other node
+        def build_req(host, port, hops, op, k, v):
+            return host + ',' + str(port) + ',' + str(hops) + ',' + op + ',' + k + ',' + v
+        hops += 1
+        msg = build_req(cli_host, cli_port, hops, op, key, value)
+        print ('forward ', msg, ' to ', (target_host, target_port))
+        sock.sendto(str.encode(msg), (target_host, target_port))

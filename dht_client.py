@@ -11,10 +11,21 @@ def _parse_args():
     args = parser.parse_args()
     return args.host[0], args.port[0], args.op[0], args.key[0], args.value[0]
 
+'''
+host & port is the client address, both of them will be speicified in the first server node
+hops: total hops at some stage
+op: operation GET / PUT
+k: key
+v: value
+'''
+def build_req(host, port, hops, op, k, v):
+    return host + ',' + str(port) + ',' + str(hops) + ',' + op + ',' + k + ',' + v
+
+
 host, port, op, k, v = _parse_args()
-msg = host + ',' + str(port) + ',1,' + op + ',' + k + ',' + v
-print ('send request:', msg)
+msg = build_req("", 0, 1, op, k, v)
+print ('send request:', msg, ' to ', (host, port))
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.sendto(str.encode(msg), (host, port))
-resp = sock.recv(1024)
-print ('response received:', resp)
+resp, server_address = sock.recvfrom(1024)
+print ('response received:', resp, ' from ', server_address)
