@@ -73,7 +73,7 @@ class Node:
     def closest_preceding_finger(self, key_id):
         for i in range(M - 1, -1, -1):
             if self.id < key_id:
-                if self.id < self.fingers[i] and self.fingers[i] < key_id:
+                if self.id < self.fingers[i].id and self.fingers[i].id < key_id:
                     return self.fingers[i]
             else:
                 if self.fingers[i].id > self.id or self.fingers[i].id < key_id:
@@ -138,7 +138,7 @@ while True:
     req, cli_address = sock.recvfrom(1024)
     req = req.decode(charset)
     is_found, cli_host, cli_port, hops, op, key, value = parse_request(req)
-    key_id = hex(id)
+    key_id = hex(key)
     print ("Received request [op = %s, key = %s, val = %s, hops = %d, key_ID = %d] from %s" % (op, key, value, hops, key_id, cli_address))
     
     if hops == 1:
