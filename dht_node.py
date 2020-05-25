@@ -9,9 +9,7 @@ Chords = 2 ** M
 
 
 def bytes_to_int(bytes):
-    res = int.from_bytes(bytes, byteorder='big', signed=False) % Chords
-    print (res)
-    return res
+    return int.from_bytes(bytes, byteorder='big', signed=False) % Chords
 
 
 def hex(x):
@@ -106,7 +104,7 @@ def _load_data_to_nodes(hostfile):
                 port = int(port)
                 nodes.append(Node(host, port))
     except FileNotFoundError as e:
-        print (hostfile, ' not exist')
+        print (hostfile, 'not exist')
         print (repr(e))
         sys.exit()
     except Exception as e:
@@ -117,13 +115,14 @@ def _load_data_to_nodes(hostfile):
 
 def parse_request(r):
     r = r.split(',')
-    host = str(r[0])
-    port = int(r[1])
-    hop = int(r[2])
-    op = str(r[3])
-    k = str(r[4])
-    v = str(r[5])
-    return host, port, hop, op, k, v
+    is_found = int(r[0])
+    host = str(r[1])
+    port = int(r[2])
+    hop = int(r[3])
+    op = str(r[4])
+    k = str(r[5])
+    v = str(r[6])
+    return is_found, host, port, hop, op, k, v
 
 
 hostfile, linenum = _parse_args()
@@ -135,26 +134,29 @@ myself.build_finger(nodes)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((myself.host, myself.port))
 while True:
-    print ("[", myself.id, "]", myself.host, ":", myself.port, "waiting")
+    print ("[Node_ID: %d]%s is waiting" % (myself.id, (myself.host, myself.port)))
     req, cli_address = sock.recvfrom(1024)
     req = req.decode(charset)
-    print('request received:', req, ' from ', cli_address)
-    cli_host, cli_port, hops, op, key, value = parse_request(req)
+    is_found, cli_host, cli_port, hops, op, key, value = parse_request(req)
+    key_id = hex(id)
+    print ("Received request [op = %s, key = %s, val = %s, hops = %d, key_ID = %d] from %s" % (op, key, value, hops, key_id, cli_address))
+    
     if hops == 1:
+        # store the origin client address and put it in the request always
         cli_host = cli_address[0]
         cli_port = cli_address[1]
     
-    key_id = hex(id)
     cur_node = myself
-    is_key_assigned_to_myself = False
+    is_key_assigned_to_mysuccessor = False
+    # check if the key can be assigned to my successor
     if cur_node.id < cur_node.get_successor(nodes).id:
-        is_key_assigned_to_myself = (key_id > cur_node.id and key_id <= cur_node.get_successor(nodes).id)
+        is_key_assigned_to_mysuccessor = (key_id > cur_node.id and key_id <= cur_node.get_successor(nodes).id)
     elif cur_node.id == cur_node.get_successor(nodes).id:
-        is_key_assigned_to_myself = (cur_node.id == key_id)
+        is_key_assigned_to_mysuccessor = (cur_node.id == key_id)
     else:
-        is_key_assigned_to_myself = (key_id > cur_node.id or key_id <= cur_node.get_successor(nodes).id)
+        is_key_assigned_to_mysuccessor = (key_id > cur_node.id or key_id <= cur_node.get_successor(nodes).id)
 
-    if is_key_assigned_to_myself:
+    if is_found == 1:
         resp = ""
         if op.lower() == "get":
             resp = myself.get(key)
@@ -162,13 +164,19 @@ while True:
             myself.put(key, value)
             resp = "put successful"
         sock.sendto(str.encode(resp), (cli_host, cli_port))
-        print ('send response:', resp, ' to ', (cli_host, cli_port))
+        print ('Done. Send response[%s] to origin client %s:%d\n' % (resp, cli_host, cli_port))
+        continue
+    
+    if is_key_assigned_to_mysuccessor:
+        # the key can be assigned to my successor, and will let the successor process this msg
+        is_found = 1
+        cur_node = cur_node.get_successor(nodes)
     else:
+        #the key can't be assigned to my successor, forward to other node
         cur_node = cur_node.closest_preceding_finger(key_id)
-        #forward to other node
-        def build_req(host, port, hops, op, k, v):
-            return host + ',' + str(port) + ',' + str(hops) + ',' + op + ',' + k + ',' + v
-        hops += 1
-        msg = build_req(cli_host, cli_port, hops, op, key, value)
-        print ('forward ', msg, ' to ', (cur_node.host, cur_node.port))
-        sock.sendto(str.encode(msg), (cur_node.host, cur_node.port))
+    def build_req(is_found, host, port, hops, op, k, v):
+        return str(is_found) + ',' + host + ',' + str(port) + ',' + str(hops) + ',' + op + ',' + k + ',' + v
+    hops += 1
+    msg = build_req(is_found, cli_host, cli_port, hops, op, key, value)
+    print ("Forward the request[%s] to %s:%d\n" % (msg, cur_node.host, cur_node.port))
+    sock.sendto(str.encode(msg), (cur_node.host, cur_node.port))
