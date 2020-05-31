@@ -12,26 +12,33 @@ def bytes_to_int(bytes):
     return int.from_bytes(bytes, byteorder='big', signed=False) % Chords
 
 
-def hex(x):
+def string_hex(x):
     h = hashlib.sha1()
     h.update(repr(x).encode(charset))
-    res = h.hexdigest()
-    return bytes_to_int(str.encode(res))
+    return h.hexdigest()
 
 
-def hex_id(host, port):
+def string_hex_id(x):
+    return bytes_to_int(str.encode(string_hex(x)))
+
+
+def host_hex(host, port):
     h = hashlib.sha1()
     h.update(repr(host).encode(charset))
     h.update(repr(port).encode(charset))
-    res = h.hexdigest()
-    return bytes_to_int(str.encode(res))
+    return h.hexdigest()
+
+
+def host_id_hex(host, port):
+    return bytes_to_int(str.encode(host_hex(host, port)))
 
 
 class Node:
     def __init__(self, host, port):
         self.host = host
         self.port = port
-        self.id = hex_id(host, port)
+        self.id = host_id_hex(host, port)
+        self.hex_id = host_hex(host, port)
         self.kv = {}
         self.fingers = []
         self.fingers_built = False
@@ -138,8 +145,9 @@ while True:
     req, cli_address = sock.recvfrom(1024)
     req = req.decode(charset)
     is_found, cli_host, cli_port, hops, op, key, value = parse_request(req)
-    key_id = hex(key)
-    print ("Received request [op = %s, key = %s, val = %s, hops = %d, key_ID = %d] from %s" % (op, key, value, hops, key_id, cli_address))
+    key_id = string_hex_id(key)
+    print ("[Node_ID: %d]%s receives request [op = %s, key = %s, val = %s, hops = %d, key_ID = %d] from %s" 
+        % (myself.id, (myself.host, myself.port), op, key, value, hops, key_id, cli_address))
     
     if hops == 1:
         # store the origin client address and put it in the request always
@@ -159,12 +167,15 @@ while True:
     if is_found == 1:
         resp = ""
         if op.lower() == "get":
-            resp = myself.get(key)
+            resp = "get the value[{}] of the key[{}, ID:{}, Hex:{}] from the node[ID:{}, Hex:{}]".format(
+                myself.get(key), key, key_id, string_hex(key), myself.id, myself.hex_id)
         else:
             myself.put(key, value)
-            resp = "put successful"
+            resp = "put the value[{}] of the key[{}, ID:{}, Hex:{}] from the node[ID:{}, Hex:{}]".format(
+                value, key, key_id, string_hex(key), myself.id, myself.hex_id)
         sock.sendto(str.encode(resp), (cli_host, cli_port))
-        print ('Done. Send response[%s] to origin client %s:%d\n' % (resp, cli_host, cli_port))
+        print ('[Node_ID: %d]%s sends response[%s] to origin client %s:%d\n' % (
+            myself.id, (myself.host, myself.port), resp, cli_host, cli_port))
         continue
     
     if is_key_assigned_to_mysuccessor:
@@ -178,5 +189,6 @@ while True:
         return str(is_found) + ',' + host + ',' + str(port) + ',' + str(hops) + ',' + op + ',' + k + ',' + v
     hops += 1
     msg = build_req(is_found, cli_host, cli_port, hops, op, key, value)
-    print ("Forward the request[%s] to %s:%d\n" % (msg, cur_node.host, cur_node.port))
+    print ("[Node_ID: %d]%s forwards the request[%s] to %s:%d\n" % (
+        myself.id, (myself.host, myself.port), msg, cur_node.host, cur_node.port))
     sock.sendto(str.encode(msg), (cur_node.host, cur_node.port))
