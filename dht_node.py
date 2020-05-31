@@ -167,15 +167,18 @@ while True:
     if is_found == 1:
         resp = ""
         if op.lower() == "get":
+            val = myself.get(key)
+            if val == "":
+                val = "I'm deleted/I don't exist"
             resp = "get the value[{}] of the key[{}, ID:{}, Hex:{}] from the node[ID:{}, Hex:{}]".format(
-                myself.get(key), key, key_id, string_hex(key), myself.id, myself.hex_id)
+                val, key, key_id, string_hex(key), myself.id, myself.hex_id)
         else:
             myself.put(key, value)
-            resp = "put the value[{}] of the key[{}, ID:{}, Hex:{}] from the node[ID:{}, Hex:{}]".format(
-                value, key, key_id, string_hex(key), myself.id, myself.hex_id)
+            resp = "put the key value pair[key:{}, ID:{}, Hex:{}] into the node[ID:{}, Hex:{}]".format(
+                key, key_id, string_hex(key), myself.id, myself.hex_id)
         sock.sendto(str.encode(resp), (cli_host, cli_port))
-        print ('[Node_ID: %d]%s sends response[%s] to origin client %s:%d\n' % (
-            myself.id, (myself.host, myself.port), resp, cli_host, cli_port))
+        print ('[Node_ID: %d]%s sends response to origin client %s:%d\n' % (
+            myself.id, (myself.host, myself.port), cli_host, cli_port))
         continue
     
     if is_key_assigned_to_mysuccessor:
