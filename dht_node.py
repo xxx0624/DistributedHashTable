@@ -4,7 +4,7 @@ import socket
 import sys
 
 charset = "UTF-8"
-M = 5
+M = 160
 Chords = 2 ** M
 
 
@@ -64,7 +64,7 @@ class Node:
         for i in range(M):
             self.fingers.append(_next_node((self.id + 2 ** i) % (Chords), nodes))
     
-
+    # successor = n + 2^0
     def get_successor(self, nodes):
         self.build_finger(nodes)
         return self.fingers[0]
