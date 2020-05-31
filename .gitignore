@@ -130,3 +130,6 @@ dmypy.json
 
 # mytest files
 test.py
+testclient.py
+testserver.py
+hostfile
