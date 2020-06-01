@@ -132,4 +132,6 @@ dmypy.json
 test.py
 testclient.py
 testserver.py
+testserver1.py
+testserver2.py
 hostfile
