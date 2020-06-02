@@ -41,6 +41,7 @@ if __name__ == '__main__':
 
     print ('send request:', msg, ' to ', (host, port))
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("", 11315))
     sock.sendto(str.encode(msg), (host, port))
-    resp, server_address = sock.recvfrom(1024)
+    resp, server_address = sock.recvfrom(4096)
     print ('response received:', resp, ' from ', server_address)

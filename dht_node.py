@@ -142,7 +142,7 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((myself.host, myself.port))
 while True:
     print ("[Node_ID: %d]%s is waiting" % (myself.id, (myself.host, myself.port)))
-    req, cli_address = sock.recvfrom(1024)
+    req, cli_address = sock.recvfrom(4096)
     req = req.decode(charset)
     is_found, cli_host, cli_port, hops, op, key, value = parse_request(req)
     key_id = string_hex_id(key)
